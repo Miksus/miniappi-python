@@ -1,5 +1,7 @@
 # Miniappi
 
+[![Python test](https://github.com/Miksus/miniappi-python/actions/workflows/build.yml/badge.svg)](https://github.com/Miksus/miniappi-python/actions/workflows/build.yml)
+
 ## What is it?
 
 This library is a Python client library for
