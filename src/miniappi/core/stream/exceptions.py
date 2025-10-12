@@ -1,0 +1,9 @@
+
+class StreamException(Exception):
+    ...
+
+class CloseSessionException(StreamException):
+    ...
+
+class CloseStreamException(StreamException):
+    ...

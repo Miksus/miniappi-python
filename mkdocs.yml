@@ -1,0 +1,21 @@
+site_name: "Miniappi Python"
+
+theme:
+  name: "material"
+  user_color_mode_toggle: auto
+  palette:
+    primary: deep orange
+
+plugins:
+- search
+- mkdocstrings:
+    default_handler: python
+    handlers:
+      python:
+        options:
+          inherited_members: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences

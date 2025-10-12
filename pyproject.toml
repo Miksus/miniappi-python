@@ -1,0 +1,39 @@
+[project]
+name = "miniappi"
+version = "0.1.0"
+description = "Miniappi app launcher library"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "httpx-ws>=0.8.0",
+    "pydantic>=2.11.7",
+    "pydantic-settings>=2.10.1",
+    "rich>=14.2.0",
+]
+
+[dependency-groups]
+build = []
+dev = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.21",
+    "mkdocstrings[python]>=0.30.1",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.1.0",
+    "starlette>=0.48.0",
+]
+standard = []
+
+[project.scripts]
+python_process = "python_process.main:app"
+
+[pytest]
+pythonpath = [
+  "src"
+]
+
+[tool.pytest.ini_options]
+asyncio_mode="auto"
+
+[build-system]
+requires = ["uv_build>=0.7.9,<0.8.0"]
+build-backend = "uv_build"
