@@ -4,8 +4,6 @@ from miniappi.core.app.models import BaseContent
 from miniappi.core.app.message_types import InputMessage, PutRoot
 
 def handle_message(curr_content: CurrentContent, msg: InputMessage):
-    # Shadow the content in Front-end
-    # See: src/vue_app/src/stores/utils/message.ts
 
     if msg.type == "root":
         curr_content.root = msg.data
