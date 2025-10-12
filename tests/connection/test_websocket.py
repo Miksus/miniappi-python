@@ -34,8 +34,15 @@ webapp = Starlette(
 
 @pytest.fixture
 async def fake_ws_client():
-    async with httpx.AsyncClient(transport=ASGIWebSocketTransport(webapp), headers={'host': 'example.org'}) as client:
-        yield client
+    try:
+        async with httpx.AsyncClient(transport=ASGIWebSocketTransport(webapp), headers={'host': 'example.org'}) as client:
+            yield client
+    except RuntimeError as exc:
+        if exc.args[0] == "Attempted to exit cancel scope in a different task than it was entered in":
+            # httpx_ws might try to close
+            # the client
+            return
+        raise
 
 @pytest.mark.asyncio
 async def test_app_start_anon(fake_ws_client):
