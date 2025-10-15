@@ -13,35 +13,91 @@ DynamicForm(...)
 | attribute  | type      | description | required |
 |------------|-----------|-------------|----------|
 | fields | array | None | True |
+| legend | string | None | False |
 
 ## Suplementary
 
-### FormField
+### DatePicker
 ```python
-from miniappi.content.v0.forms.dynamic_form import FormField
+from miniappi.content.v0.forms.dynamic_form import DatePicker
 ```
 
 | attribute  | type      | description | required |
 |------------|-----------|-------------|----------|
-| args | Dict[string,any] | None | False |
-| default | any | None | False |
+| groupId | string | None | False |
 | label | string | None | True |
 | name | string | None | True |
-| type | string: <ul><li>'text'</li><li>'date'</li><li>'datetime'</li><li>'boolean'</li><li>'integer'</li><li>'submit'</li></ul> | None | True |
-| value | any | None | False |
-
-
-### Submit
-```python
-from miniappi.content.v0.forms.dynamic_form import Submit
-```
-
-| attribute  | type      | description | required |
-|------------|-----------|-------------|----------|
-| args | Dict[string,any] | None | False |
-| default | any | None | False |
-| label | string | None | True |
-| name | string | None | True |
+| required | boolean | None | False |
 | type | string | None | True |
-| value | any | None | False |
+
+
+### Email
+```python
+from miniappi.content.v0.forms.dynamic_form import Email
+```
+
+| attribute  | type      | description | required |
+|------------|-----------|-------------|----------|
+| groupId | string | None | False |
+| label | string | None | True |
+| name | string | None | True |
+| required | boolean | None | False |
+| type | string | None | True |
+
+
+### InputNumber
+```python
+from miniappi.content.v0.forms.dynamic_form import InputNumber
+```
+
+| attribute  | type      | description | required |
+|------------|-----------|-------------|----------|
+| groupId | string | None | False |
+| label | string | None | True |
+| name | string | None | True |
+| required | boolean | None | False |
+| type | string | None | True |
+
+
+### InputText
+```python
+from miniappi.content.v0.forms.dynamic_form import InputText
+```
+
+| attribute  | type      | description | required |
+|------------|-----------|-------------|----------|
+| groupId | string | None | False |
+| label | string | None | True |
+| name | string | None | True |
+| required | boolean | None | False |
+| type | string | None | True |
+
+
+### Password
+```python
+from miniappi.content.v0.forms.dynamic_form import Password
+```
+
+| attribute  | type      | description | required |
+|------------|-----------|-------------|----------|
+| groupId | string | None | False |
+| label | string | None | True |
+| name | string | None | True |
+| required | boolean | None | False |
+| type | string | None | True |
+
+
+### Rating
+```python
+from miniappi.content.v0.forms.dynamic_form import Rating
+```
+
+| attribute  | type      | description | required |
+|------------|-----------|-------------|----------|
+| groupId | string | None | False |
+| label | string | None | True |
+| name | string | None | True |
+| required | boolean | None | False |
+| stars | number | None | False |
+| type | string | None | True |
 

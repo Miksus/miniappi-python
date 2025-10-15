@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 from miniappi.core.app.models import BaseContent
 from pydantic import ConfigDict, Field, RootModel
@@ -14,9 +14,10 @@ class Props(BaseContent):
         extra='allow',
     )
     id: str = Field(..., description='ID of the component')
+    options: List[str]
+    placeholder: Optional[str] = None
     submitText: Optional[str] = None
-    value: Optional[str] = None
-    contentType: Literal['v0/widgets/Editor.vue'] = 'v0/widgets/Editor.vue'
+    contentType: Literal['v0/widgets/DropDown.vue'] = 'v0/widgets/DropDown.vue'
 
 
 class Root(RootModel[Props]):
