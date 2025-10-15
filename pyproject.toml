@@ -1,8 +1,17 @@
 [project]
 name = "miniappi"
-version = "0.1.1"
+version = "0.1.2"
 description = "Miniappi app launcher library"
+authors = [
+  {name = "Mikael Koli", email = "mikael.koli@miniappi.com"},
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3.13",
+]
 readme = "README.md"
+license-files = ["LICENSE*"]
 requires-python = ">=3.13"
 dependencies = [
     "httpx-ws>=0.8.0",
@@ -10,6 +19,11 @@ dependencies = [
     "pydantic-settings>=2.10.1",
     "rich>=14.2.0",
 ]
+
+[project.urls]
+Homepage = "https://miniappi.com/"
+Documentation = "https://python-docs.miniappi.com/"
+Repository = "https://github.com/Miksus/miniappi-python.git"
 
 [dependency-groups]
 build = []
