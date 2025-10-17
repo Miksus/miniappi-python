@@ -1,5 +1,5 @@
 import asyncio
-from typing import Generic, TypeVar
+from typing import Generic, TypeVar, Literal
 from collections import UserList
 from miniappi.core.app import BaseContent, user_context, app_context, PushRight, PutRef, AppSession
 from miniappi.core.stream.connection import Message
@@ -9,9 +9,10 @@ T = TypeVar("T")
 class Feed(UserList, Generic[T]):
     """Content Feed"""
 
-    def __init__(self, initlist=None, id=None):
+    def __init__(self, initlist=None, id=None, scope: Literal["app", "user", "auto"] = None):
         super().__init__(initlist)
         self.id = id
+        self.scope = scope
 
     async def _push_session(self, elem, session: AppSession):
         await session.send(
