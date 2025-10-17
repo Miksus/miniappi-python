@@ -14,4 +14,6 @@ class Settings(BaseSettings):
 
     echo_url: bool | None = True
 
+    timeout: float | None = None
+
 settings = Settings()
