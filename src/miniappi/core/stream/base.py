@@ -59,7 +59,7 @@ class Streamer(Generic[StreamSessionT]):
         print(
             Panel(
                 "Miniappi is running.\n"
-                f"[bold red]App link:[/bold red] [link={url}]{url}[/link]!"
+                f"[bold red]App link:[/bold red] [link={url}]{url}[/link]"
             )
         )
 
