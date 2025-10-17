@@ -14,4 +14,7 @@ class Settings(BaseSettings):
 
     echo_url: bool | None = True
 
+    keepalive_ping_interval: float | None = 20.0
+    timeout: float | None = None
+
 settings = Settings()

@@ -109,7 +109,7 @@ class WebsocketChannel(AbstractChannel[WebsocketConnection]):
     async def connect(self):
         logger = logging.getLogger(__name__)
         logger.info(f"Connecting: {self.channel}")
-        async with aconnect_ws(self.channel, client=self.client, keepalive_ping_interval_seconds=200, keepalive_ping_timeout_seconds=200) as ws:
+        async with aconnect_ws(self.channel, client=self.client, keepalive_ping_interval_seconds=settings.keepalive_ping_interval, keepalive_ping_timeout_seconds=settings.timeout) as ws:
             is_start = self.request_id is None
             if is_start:
                 is_anonymous = self.is_anonymous
@@ -129,7 +129,7 @@ class WebsocketChannel(AbstractChannel[WebsocketConnection]):
 class WebsocketClient(AbstractClient[WebsocketChannel]):
 
     def __init__(self, client: AsyncClient | None = None):
-        self.client = client or AsyncClient()
+        self.client = client or AsyncClient(timeout=settings.timeout)
 
     def from_start_args(self, args: WebsocketStartArgs) -> WebsocketChannel:
         return WebsocketChannel(
