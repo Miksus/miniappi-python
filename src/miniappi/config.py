@@ -2,12 +2,10 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    "API settings (by default dev)"
+    "Miniappi configuration"
     model_config = SettingsConfigDict(
-        env_prefix='python_api_'
+        env_prefix='miniappi_'
     )
-
-    log_dir: Path = Path().cwd() / "logs"
 
     url_start: str = "https://miniappi.com/api/v1/streams/apps/start"
     url_apps: str = "https://miniappi.com/apps"
