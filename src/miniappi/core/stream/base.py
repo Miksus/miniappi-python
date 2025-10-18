@@ -13,7 +13,7 @@ from collections.abc import Callable
 from .models import OnMessageConfig, OnOpenConfig
 from .session import StreamSession
 from .exceptions import CloseSessionException, CloseStreamException
-from .connection import AbstractConnection, AbstractClient, AbstractChannel, Message, BaseStartArgs, WebsocketClient
+from .connection import AbstractConnection, AbstractClient, AbstractChannel, Message, BaseStartArgs, WebsocketClient, ClientConf, ServerConf
 from miniappi.config import settings
 from rich import print
 from rich.panel import Panel
@@ -67,18 +67,20 @@ class Streamer(Generic[StreamSessionT]):
     async def _subscribe(self, echo_link: bool | None, stack: ExitStack):
         client: AbstractChannel = self.conn_client.from_init_channel(self.url)
         async with client.connect() as connection:
-            url = client.app_url
-            if url is not None:
-                show_url = (
-                    echo_link
-                    if echo_link is not None
-                    else settings.echo_url
-                )
-                if show_url:
-                    self.show_app_url(url)
+            config: ServerConf = await connection.init_app(
+                ClientConf(version=settings.version)
+            )
+            url = config.app_url
+            show_url = (
+                echo_link
+                if echo_link is not None
+                else settings.echo_url
+            )
+            if show_url:
+                self.show_app_url(url)
             args = {
-                "app_url": client.app_url,
-                "name": client.app_name
+                "app_url": config.app_url,
+                "name": config.app_name
             }
             for app_context in self.get_app_context_managers(args):
                 stack.enter_context(app_context)

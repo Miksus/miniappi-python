@@ -1,10 +1,10 @@
 from typing import Generic, TypeVar, AsyncGenerator, Literal, Self, AsyncContextManager
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from contextlib import asynccontextmanager
 from abc import ABC, abstractmethod
-from httpx_ws import aconnect_ws, AsyncWebSocketSession
+from httpx_ws import aconnect_ws, AsyncWebSocketSession, WebSocketNetworkError
 from httpx import AsyncClient
 from pydantic import BaseModel
 
@@ -23,6 +23,18 @@ class Message:
     request_id: str | None
     data: dict
 
+@dataclass
+class ServerConf:
+    "Config given by Miniappi server"
+    app_name: str
+    app_url: str
+    recovery_key: str | None = None
+
+@dataclass
+class ClientConf:
+    "Config given by Miniappi client"
+    version: str # Version of 
+
 class AbstractConnection(ABC):
 
     @abstractmethod
@@ -40,15 +52,29 @@ class AbstractConnection(ABC):
         "Listen start message from the connection"
         ...
 
+    @abstractmethod
+    async def init_app(self, conf: dict) -> AsyncGenerator[ServerConf]:
+        "Communicate app initiation"
+        ...
+
 class AbstractChannel(ABC, Generic[ConnectionT]):
 
     def __init__(self):
         self.app_url: str | None = None
         self.app_name: str | None = None
+        self.start_conf: ServerConf | None = None
 
     @abstractmethod
     def connect(self) -> AsyncContextManager[ConnectionT]:
         ...
+
+    @property
+    def app_url(self):
+        return self.app_url
+    
+    @property
+    def app_name(self):
+        return self.app_name
 
 class AbstractClient(ABC, Generic[SessionT]):
 
@@ -78,7 +104,10 @@ class WebsocketConnection(AbstractConnection):
 
     async def listen(self):
         while True:
-            data = await self.ws.receive_text()
+            try:
+                data = await self.ws.receive_text()
+            except WebSocketNetworkError:
+                ...
             if data == "OFF":
                 # Users disconnected
                 raise CloseSessionException("User closed the session")
@@ -89,42 +118,28 @@ class WebsocketConnection(AbstractConnection):
                 data=message
             )
 
+    async def init_app(self, conf: ClientConf):
+        await self.ws.send_json(asdict(conf))
+        confdata = await self.ws.receive_json()
+        return ServerConf(**confdata)
+
     async def listen_start(self):
         async for msg in self.listen():
             yield WebsocketStartArgs(**msg.data)
 
 class WebsocketChannel(AbstractChannel[WebsocketConnection]):
 
-    def __init__(self, client: AsyncClient, channel: str, request_id: str | None, is_anonymous: bool = True):
+    def __init__(self, client: AsyncClient, channel: str, request_id: str | None):
         self.client = client
         self.channel = channel
-        self.request_id = request_id
-        self.is_anonymous = is_anonymous
-
-        self.app_url: str | None = None
-        self.app_name: str | None = None
         super().__init__()
 
     @asynccontextmanager
     async def connect(self):
         logger = logging.getLogger(__name__)
         logger.info(f"Connecting: {self.channel}")
-        async with aconnect_ws(self.channel, client=self.client, keepalive_ping_interval_seconds=settings.keepalive_ping_interval, keepalive_ping_timeout_seconds=settings.timeout) as ws:
-            is_start = self.request_id is None
-            if is_start:
-                is_anonymous = self.is_anonymous
-                if is_anonymous:
-                    # The start sends a payload for
-                    # generated UUID
-                    # We show this UUID to the user
-                    # so they can go to the app page
-                    uuid = await ws.receive_json()
-                    self.app_name = uuid
-                    self.app_url = f"{settings.url_apps}/{uuid}"
-                else:
-                    self.app_url = f"{settings.url_apps}/{self.app_name}"
+        async with aconnect_ws(self.channel, client=self.client, keepalive_ping_interval_seconds=settings.keepalive_ping_interval, keepalive_ping_timeout_seconds=settings.keepalive_ping_timeout) as ws:
             yield WebsocketConnection(ws, client=self)
-
 
 class WebsocketClient(AbstractClient[WebsocketChannel]):
 

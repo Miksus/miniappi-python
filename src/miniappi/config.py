@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     echo_url: bool | None = True
 
     keepalive_ping_interval: float | None = 20.0
+    keepalive_ping_timeout: float | None = 20.0
     timeout: float | None = None
+
+    @property
+    def version(self):
+        "Version of Miniappi"
+        return "0.1.3"
 
 settings = Settings()
