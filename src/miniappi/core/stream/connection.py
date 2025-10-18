@@ -59,22 +59,9 @@ class AbstractConnection(ABC):
 
 class AbstractChannel(ABC, Generic[ConnectionT]):
 
-    def __init__(self):
-        self.app_url: str | None = None
-        self.app_name: str | None = None
-        self.start_conf: ServerConf | None = None
-
     @abstractmethod
     def connect(self) -> AsyncContextManager[ConnectionT]:
         ...
-
-    @property
-    def app_url(self):
-        return self.app_url
-    
-    @property
-    def app_name(self):
-        return self.app_name
 
 class AbstractClient(ABC, Generic[SessionT]):
 
@@ -132,6 +119,7 @@ class WebsocketChannel(AbstractChannel[WebsocketConnection]):
     def __init__(self, client: AsyncClient, channel: str, request_id: str | None):
         self.client = client
         self.channel = channel
+        self.request_id = request_id
         super().__init__()
 
     @asynccontextmanager
@@ -164,5 +152,4 @@ class WebsocketClient(AbstractClient[WebsocketChannel]):
             client=self.client,
             channel=url,
             request_id=None,
-            is_anonymous=is_anonymous
         )

@@ -29,6 +29,7 @@ class AppContext(ContextModel):
     app: "App"
     name: str
     app_url: str
+    recovery_key: str
     sessions: Dict[str, "AppSession"]
     extra: dict = field(default_factory=lambda: {})
 

@@ -80,7 +80,8 @@ class Streamer(Generic[StreamSessionT]):
                 self.show_app_url(url)
             args = {
                 "app_url": config.app_url,
-                "name": config.app_name
+                "name": config.app_name,
+                "recovery_key": config.recovery_key
             }
             for app_context in self.get_app_context_managers(args):
                 stack.enter_context(app_context)

@@ -2,12 +2,14 @@ import asyncio
 from typing import List, Dict, Tuple
 from uuid import uuid4
 from collections import defaultdict
+from dataclasses import asdict
 from contextlib import asynccontextmanager
 from miniappi.core.stream.connection import (
     BaseStartArgs,
     AbstractConnection,
     AbstractChannel,
-    AbstractClient, Message
+    AbstractClient, Message,
+    ServerConf, ClientConf
 )
 
 class MockStartArgs(BaseStartArgs):
@@ -42,6 +44,15 @@ class MockConnection(AbstractConnection):
                 yield msg
             await asyncio.sleep(0)
 
+    async def init_app(self, conf: ClientConf):
+        self._client_conf = conf
+        app_name = str(uuid4())
+        return ServerConf(
+            app_url=f"http://localhost:0000/apps/{app_name}",
+            app_name=app_name,
+            recovery_key=str(uuid4())
+        )
+
     async def listen_start(self):
         async for msg in self.listen():
             yield MockStartArgs(**msg.data)
@@ -57,9 +68,6 @@ class MockChannel(AbstractChannel[MockConnection]):
         self.channel_name = channel
         self.request_id = request_id
         self.store = store
-
-        self.app_name = str(uuid4())
-        self.app_url = f"http://localhost:0000/apps/{self.app_name}"
 
     @asynccontextmanager
     async def connect(self):
