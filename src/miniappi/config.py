@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     )
 
     url_start: str = "https://miniappi.com/api/v1/streams/apps/start"
+    url_recover: str = "https://miniappi.com/api/v1/streams/apps/recover"
     url_apps: str = "https://miniappi.com/apps"
 
     echo_url: bool | None = True

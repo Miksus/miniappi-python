@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass, asdict
 from contextlib import asynccontextmanager
 from abc import ABC, abstractmethod
-from httpx_ws import aconnect_ws, AsyncWebSocketSession, WebSocketNetworkError
+from httpx_ws import aconnect_ws, AsyncWebSocketSession
 from httpx import AsyncClient
 from pydantic import BaseModel
 
@@ -74,6 +74,11 @@ class AbstractClient(ABC, Generic[SessionT]):
         "Init client from channel name (for app init)"
         ...
 
+    @abstractmethod
+    def from_reconnect(self, app_name, recovery_key: str):
+        "Init client from recovery"
+        ...
+
 # Websocket
 
 class WebsocketStartArgs(BaseStartArgs):
@@ -91,13 +96,12 @@ class WebsocketConnection(AbstractConnection):
 
     async def listen(self):
         while True:
-            try:
-                data = await self.ws.receive_text()
-            except WebSocketNetworkError:
-                ...
-            if data == "OFF":
+            data = await self.ws.receive_text()
+            if data.lower() == "off":
                 # Users disconnected
                 raise CloseSessionException("User closed the session")
+            elif data.lower() == "ping":
+                continue
             message = json.loads(data)
             yield Message(
                 channel=self.client.channel,
@@ -151,5 +155,12 @@ class WebsocketClient(AbstractClient[WebsocketChannel]):
         return WebsocketChannel(
             client=self.client,
             channel=url,
+            request_id=None,
+        )
+
+    def from_reconnect(self, app_name: str, recovery_key: str):
+        return WebsocketChannel(
+            client=self.client,
+            channel=f"{settings.url_recover}/{app_name}/{recovery_key}",
             request_id=None,
         )

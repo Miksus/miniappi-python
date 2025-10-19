@@ -5,6 +5,7 @@ from typing import Callable, List, AsyncIterable
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
+from miniappi import app_context
 from miniappi.core.stream import Streamer
 from miniappi.core.stream.connection import Message
 from .mock import MockClient, MockStartArgs
@@ -50,7 +51,8 @@ class StreamHandler:
         )
 
     async def start_communication(self, **kwargs):
-        await self.conn_client.request_queue[(self.stream.url, None)].put(
+        channel_id = self.stream.conn_client._app_name
+        await self.conn_client.request_queue[(channel_id, None)].put(
             self.start_args.model_dump()
         )
 
@@ -120,6 +122,7 @@ async def listen(stream: Streamer, request_id: str = None, start_args: dict = No
     "Communicate with a stream"
     start_args = start_args or {}
     request_id = request_id or str(uuid4())
+    timeout = 60 * 5
 
     handler = StreamHandler(
         stream=stream,
@@ -131,25 +134,25 @@ async def listen(stream: Streamer, request_id: str = None, start_args: dict = No
         if message.channel == handler.channel_name and message.request_id == handler.request_id:
             handler.received.append(message)
 
-    async with asyncio.timeout(2):
+    async with asyncio.timeout(timeout):
         while True:
             if stream.subscribed:
                 break
             await asyncio.sleep(0)
 
-    async with asyncio.timeout(2):
+    async with asyncio.timeout(timeout):
         await handler.start_communication(
             **start_args
         )
-        await handler.wait_for_stream_ready()
+        await handler.wait_for_stream_ready(timeout)
 
-    async with asyncio.timeout(2):
+    async with asyncio.timeout(timeout):
         yield handler
 
-    async with asyncio.timeout(2):
+    async with asyncio.timeout(timeout):
         await handler.wait_for_messages()
 
     if wait_close:
-        async with asyncio.timeout(2):
+        async with asyncio.timeout(timeout):
             while stream.subscribed:
                 await asyncio.sleep(0)

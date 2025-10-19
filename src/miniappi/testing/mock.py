@@ -11,6 +11,7 @@ from miniappi.core.stream.connection import (
     AbstractClient, Message,
     ServerConf, ClientConf
 )
+from httpx_ws import WebSocketNetworkError
 
 class MockStartArgs(BaseStartArgs):
     channel: str | None
@@ -46,7 +47,7 @@ class MockConnection(AbstractConnection):
 
     async def init_app(self, conf: ClientConf):
         self._client_conf = conf
-        app_name = str(uuid4())
+        app_name = self.channel.channel_name
         return ServerConf(
             app_url=f"http://localhost:0000/apps/{app_name}",
             app_name=app_name,
@@ -54,7 +55,10 @@ class MockConnection(AbstractConnection):
         )
 
     async def listen_start(self):
+
         async for msg in self.listen():
+            if self._store.network_error_on_start:
+                raise WebSocketNetworkError("Not connected")
             yield MockStartArgs(**msg.data)
 
     @property
@@ -83,6 +87,12 @@ class MockClient(AbstractClient[MockChannel]):
         self.received: List[Message] = []
         super().__init__()
 
+        # Triggers for testing
+        self.network_error_on_start = False
+
+        # Mocks need
+        self._app_name = None
+
     def from_start_args(self, args: MockStartArgs):
         return MockChannel(
             channel=args.channel,
@@ -90,9 +100,18 @@ class MockClient(AbstractClient[MockChannel]):
             store=self
         )
 
-    def from_init_channel(self, channel_name: str):
+    def from_init_channel(self, app_name: str | None):
+        app_name = app_name or str(uuid4())
+        self._app_name = app_name
         return MockChannel(
-            channel=channel_name,
+            channel=app_name,
+            request_id=None,
+            store=self
+        )
+
+    def from_reconnect(self, app_name: str, recovery_key: str):
+        return MockChannel(
+            channel=app_name,
             request_id=None,
             store=self
         )

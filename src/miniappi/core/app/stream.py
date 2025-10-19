@@ -72,6 +72,11 @@ class App(Streamer[AppSession]):
             ctx.append(self.app_context.enter())
         return ctx
 
+    def _update_app_context(self, args: dict):
+        # Update app context after recovery
+        for key, val in args.items():
+            setattr(default_app_context, key, val)
+
     def get_channel_context_managers(self, session: AppSession):
         init_args = dict(
             session=session,

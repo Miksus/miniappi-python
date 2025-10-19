@@ -9,6 +9,7 @@ from contextlib import ExitStack, contextmanager, asynccontextmanager
 from types import TracebackType
 from typing import List, Dict, Any, Awaitable, Type, Generic, TypeVar, ContextManager
 from collections.abc import Callable
+from httpx_ws import WebSocketNetworkError
 
 from .models import OnMessageConfig, OnOpenConfig
 from .session import StreamSession
@@ -63,54 +64,85 @@ class Streamer(Generic[StreamSessionT]):
             )
         )
 
-    @asynccontextmanager
-    async def _subscribe(self, echo_link: bool | None, stack: ExitStack):
-        client: AbstractChannel = self.conn_client.from_init_channel(self.url)
-        async with client.connect() as connection:
-            config: ServerConf = await connection.init_app(
-                ClientConf(version=settings.version)
-            )
-            url = config.app_url
-            show_url = (
-                echo_link
-                if echo_link is not None
-                else settings.echo_url
-            )
-            if show_url:
-                self.show_app_url(url)
-            args = {
-                "app_url": config.app_url,
-                "name": config.app_name,
-                "recovery_key": config.recovery_key
-            }
+    async def _init_app(self, echo_link: bool | None, connection: AbstractConnection, stack: ExitStack):
+        config: ServerConf = await connection.init_app(
+            ClientConf(version=settings.version)
+        )
+        url = config.app_url
+        show_url = (
+            echo_link
+            if echo_link is not None
+            else settings.echo_url
+        )
+        if show_url:
+            self.show_app_url(url)
+        args = {
+            "app_url": config.app_url,
+            "name": config.app_name,
+            "recovery_key": config.recovery_key
+        }
+        if stack:
             for app_context in self.get_app_context_managers(args):
                 stack.enter_context(app_context)
-            yield connection
+        else:
+            # Update the values in the default context
+            self._update_app_context(args)
+        return config
 
-    async def _listen_start(self, connection: AbstractConnection):
-        async for start_args in connection.listen_start():
-            yield start_args
+    def _update_app_context(self, args: dict):
+        ...
+
+    async def _listen_start(self, echo_link: bool | None, app_stack: ExitStack, task_group: asyncio.TaskGroup):
+        client: AbstractChannel = self.conn_client.from_init_channel(self.url)
+        is_recovery = False
+        logger = self.get_logger("init")
+        while True:
+            try:
+                async with client.connect() as connection:
+                    conf = await self._init_app(
+                        echo_link=echo_link if not is_recovery else False,
+                        connection=connection,
+                        stack=app_stack if not is_recovery else None
+                    )
+                    if not is_recovery:
+                        await self._run_start(task_group)
+                        self.subscribed = True
+                    async for start_args in connection.listen_start():
+                        yield start_args
+            except WebSocketNetworkError as exc:
+                # Try to reconnect
+                logger.error("Network error. Trying to recover...")
+                client: AbstractChannel = self.conn_client.from_reconnect(
+                    app_name=conf.app_name,
+                    recovery_key=conf.recovery_key
+                )
+
+                # We don't rerun the app stack
+                is_recovery = True
+
+                # If we are in a loop of recovery,
+                # letting others run as well
+                await asyncio.sleep(0)
+                continue
 
     def run(self, echo_link: bool | None = None):
         "Run app (sync)"
         asyncio.run(self.start(echo_link=echo_link))
 
+    async def _start(self):
+        ...
+
     async def start(self, echo_link: bool | None = None):
         "Start app async"
         if self.subscribed:
             raise StreamRunningError("Stream is already subscribed")
-        logger = self.get_logger("stream")
+        logger = self.get_logger("init")
 
         with ExitStack() as app_stack:
             try:
-                logger.debug(f"Subscribing stream: {self.url}")
-                async with self._subscribe(echo_link, stack=app_stack) as start_conn:
-                    self.subscribed = True
-                    logger.info(f"Stream subscribed: {self.url}")
-                    async with asyncio.TaskGroup() as tg:
-                        await self._run_start(tg)
-                        async for start_args in self._listen_start(start_conn):
-                            tg.create_task(self.open_session(start_conn, start_args))
+                async with asyncio.TaskGroup() as tg:
+                    async for start_args in self._listen_start(echo_link=echo_link, app_stack=app_stack, task_group=tg):
+                        tg.create_task(self.open_session(start_args))
             except ExceptionGroup as exc:
                 # Exception is ExceptionGroup[ExceptionGroup]
                 # Check if all expected
@@ -134,7 +166,7 @@ class Streamer(Generic[StreamSessionT]):
             finally:
                 self.subscribed = False
 
-    async def open_session(self, start_conn: AbstractConnection, start_args: BaseStartArgs):
+    async def open_session(self, start_args: BaseStartArgs):
         logger = self.get_logger("session")
 
         client = self.conn_client.from_start_args(start_args)
