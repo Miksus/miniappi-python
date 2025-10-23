@@ -3,11 +3,12 @@ from dataclasses import dataclass
 
 import pytest
 
-from miniappi.core.context import ContextModel
+from miniappi import settings
+from miniappi.core.models.context import ContextModel
 
-from miniappi.core.app import App, AppSession, user_context, app_context, BaseContent
-from miniappi.core.app.message_types import PutRoot
-from miniappi.core.stream.connection import Message
+from miniappi.core import App, user_context, app_context, Session
+from miniappi.core.models.message_types import PutRoot
+from miniappi.core.connection import Message
 
 from miniappi.testing.external import listen
 from miniappi.content import Loading
@@ -24,8 +25,8 @@ async def test_app_context(mock_server):
     async def run_func():
         is_ready.set()
         assert app_context.sessions is stream.sessions
-        assert app_context.app_url.startswith("http://localhost:0000/apps/")
-        assert isinstance(app_context.name, str)
+        assert app_context.app_url == f"{settings.url_apps}/{app_context.app_name}"
+        assert isinstance(app_context.app_name, str)
         assert app_context.extra == {}
         called.append("on_start")
 
@@ -81,7 +82,7 @@ async def test_multiple_access(mock_server):
     @stream.on_open()
     async def send_messages():
         await event_both_open.wait()
-        assert isinstance(user_context.session, AppSession)
+        assert isinstance(user_context.session, Session)
         obs_context_from_response.append(
             user_context.request_id
         )

@@ -1,9 +1,9 @@
 import pytest
-from miniappi.core.stream import Streamer
-from miniappi.testing.mock import MockClient
+from miniappi.core import App
+from miniappi.core.connection.mock import MockClient
 
 @pytest.fixture
 def mock_server():
-    Streamer.conn_client = MockClient()
+    App.conn_client = MockClient()
 
     yield mock_server

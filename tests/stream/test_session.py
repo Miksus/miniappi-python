@@ -7,15 +7,14 @@ from contextlib import asynccontextmanager
 
 import pytest
 
-from miniappi.core.stream import Streamer
-from miniappi.core.stream.session import StreamSession
-from miniappi.core.stream.exceptions import CloseStreamException
-from miniappi.core.stream.connection import Message
+from miniappi.core import App
+from miniappi.core import Session
+from miniappi.core.connection import Message
 from miniappi.testing.external import listen
 
 @pytest.mark.asyncio
 async def test_send_receive(mock_server):
-    stream = Streamer(
+    stream = App(
         channel="mychannel:start",
     )
 
@@ -58,10 +57,10 @@ async def test_multiple_sessions(mock_server):
             await handler_2.send_message({"msg": "received 2"})
             await handler_1.send_message({"msg": "received 1"})
 
-    assert [msg for msg in handler_1.received] == [Message(channel='mychannel', request_id="1", data={'msg': 'received 1'})]
-    assert [msg for msg in handler_2.received] == [Message(channel='mychannel', request_id="2", data={"msg": "received 2"})]
-    assert [msg for msg in handler_1.sent] == [Message(channel='mychannel', request_id="1", data={"msg": "sent 1"})] 
-    assert [msg for msg in handler_2.sent] == [Message(channel='mychannel', request_id="2", data={"msg": "sent 2"})]
+    assert [msg for msg in handler_1.received] == [Message(url='mychannel', request_id="1", data={'msg': 'received 1'})]
+    assert [msg for msg in handler_2.received] == [Message(url='mychannel', request_id="2", data={"msg": "received 2"})]
+    assert [msg for msg in handler_1.sent] == [Message(url='mychannel', request_id="1", data={"msg": "sent 1"})] 
+    assert [msg for msg in handler_2.sent] == [Message(url='mychannel', request_id="2", data={"msg": "sent 2"})]
 
 @pytest.mark.asyncio
 async def test_callbacks(mock_server):

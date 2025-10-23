@@ -1,8 +1,8 @@
 import asyncio
 from typing import Generic, TypeVar
 from collections import UserList
-from miniappi.core.app import BaseContent, user_context, app_context, PushRight, PutRef, AppSession
-from miniappi.core.stream.connection import Message
+from miniappi.core import user_context, app_context, Session
+from miniappi.core.models.message_types import PushRight, PutRef
 
 T = TypeVar("T")
 
@@ -13,7 +13,7 @@ class Feed(UserList, Generic[T]):
         super().__init__(initlist)
         self.id = id
 
-    async def _push_session(self, elem, session: AppSession):
+    async def _push_session(self, elem, session: Session):
         await session.send(
             PushRight(
                 id=self.id,
@@ -21,7 +21,7 @@ class Feed(UserList, Generic[T]):
             )
         )
 
-    async def show(self, session: AppSession | None = None):
+    async def show(self, session: Session | None = None):
         "Send all items in the feed to the session"
         msg = PutRef(
             id=self.id,

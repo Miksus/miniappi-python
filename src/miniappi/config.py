@@ -1,4 +1,5 @@
 from pathlib import Path
+from importlib.metadata import version, PackageNotFoundError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -20,6 +21,10 @@ class Settings(BaseSettings):
     @property
     def version(self):
         "Version of Miniappi"
-        return "0.1.3"
+        try:
+            return version("miniappi")
+        except PackageNotFoundError:
+            # Probably run in dev
+            return "0.0.0"
 
 settings = Settings()

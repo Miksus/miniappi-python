@@ -1,4 +1,4 @@
-from miniappi.core.app import app_context, user_context
+from miniappi import app_context, user_context
 
 def in_channel_scope() -> bool:
     """Return true if in channel scope

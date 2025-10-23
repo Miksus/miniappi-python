@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from miniappi.core.app import App, user_context, app_context
+from miniappi.core import App, user_context, app_context
 from miniappi.testing.external import listen, StreamHandler
 
 @pytest.mark.asyncio
