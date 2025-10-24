@@ -72,6 +72,9 @@ class Session:
                 if message is not None:
                     await self._handle_request_message(message)
                 await asyncio.sleep(0)
+        except CloseSessionException:
+            # Normal closure (should not crash)
+            pass
         finally:
             self.is_running = False
 

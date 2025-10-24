@@ -5,12 +5,13 @@ import asyncio
 from typing import Callable, Any
 from dataclasses import dataclass, asdict
 from pydantic import BaseModel
-from httpx_ws import aconnect_ws, AsyncWebSocketSession, WebSocketNetworkError
+from httpx_ws import aconnect_ws, AsyncWebSocketSession, WebSocketNetworkError, WebSocketDisconnect
 from httpx import AsyncClient
 
 from rich import print
 from rich.panel import Panel
 
+from miniappi.core.exceptions import CloseSessionException
 from .base import (
     AbstractUserConnection,
     AbstractClient,
@@ -53,12 +54,17 @@ class WebsocketUserConnection(AbstractUserConnection):
 
     async def listen(self):
         "Listen messages from the user"
-        async for msg in _listen_messages(self.ws):
-            yield Message(
-                url=self.start_args.user_url,
-                request_id=self.start_args.request_id,
-                data=msg
-            )
+        try:
+            async for msg in _listen_messages(self.ws):
+                yield Message(
+                    url=self.start_args.user_url,
+                    request_id=self.start_args.request_id,
+                    data=msg
+                )
+        except WebSocketDisconnect as exc:
+            if exc.code == 1000:
+                raise CloseSessionException(exc.reason)
+            raise
 
 class WebsocketClient(AbstractClient):
 
@@ -73,7 +79,7 @@ class WebsocketClient(AbstractClient):
             keepalive_ping_interval_seconds=settings.keepalive_ping_interval,
             keepalive_ping_timeout_seconds=settings.keepalive_ping_timeout
         ) as ws:
-            yield WebsocketUserConnection(ws)
+            yield WebsocketUserConnection(ws, start_args)
 
     async def listen_app(self, conf: ClientConf, setup_start: Callable[[ServerConf, ...], Any]):
         url = (
@@ -124,3 +130,8 @@ class WebsocketClient(AbstractClient):
                     raise
                 
                 await asyncio.sleep(reconnect_delay)
+            except WebSocketDisconnect as exc:
+                if exc.code == 1000:
+                    # Normal closure
+                    raise CloseSessionException(exc.reason)
+                raise

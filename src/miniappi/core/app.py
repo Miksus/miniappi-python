@@ -169,20 +169,10 @@ class App:
                 # Exception is ExceptionGroup[ExceptionGroup]
                 # Check if all expected
                 await self._run_end()
-                is_expected = True
-                for channel_exc in exc.exceptions:
-                    if isinstance(channel_exc, ExceptionGroup):
-                        for session_exc in channel_exc.exceptions:
-                            if not isinstance(session_exc, CloseStreamException):
-                                is_expected = False
-                                break
-                    else:
-                        is_expected = False
-                        break
-                if not is_expected:
-                    logger.exception("Stream closed unexpectedly")
-                    raise
-                logger.info("Stream closed expectedly")
+                if CloseSessionException._only_this(exc):
+                    # Is expected
+                    return
+                raise
             else:
                 await self._run_end()
             finally:
