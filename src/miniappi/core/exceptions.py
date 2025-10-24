@@ -12,7 +12,7 @@ class StreamException(Exception):
                     return False
         return True
 
-class CloseSessionException(StreamException):
+class UserLeftException(StreamException):
     ...
 
 class CloseStreamException(StreamException):

@@ -9,7 +9,7 @@ from functools import partial
 from collections.abc import Callable
 
 from miniappi.core.models.callbacks import OnMessageConfig, OnOpenConfig
-from miniappi.core.exceptions import CloseSessionException, CloseStreamException
+from miniappi.core.exceptions import UserLeftException, CloseStreamException
 from . import connection as conn
 from .connection import Message, ServerConf, ClientConf, UserSessionArgs
 from miniappi.config import settings
@@ -136,7 +136,8 @@ class App:
             )
         )
 
-    async def setup_start(self, server_conf: ServerConf, echo_link: bool, task_group: asyncio.TaskGroup, stack: ExitStack):
+    async def setup_start(self, server_conf: ServerConf, echo_link: bool | None, task_group: asyncio.TaskGroup, stack: ExitStack):
+        echo_link = settings.echo_url if echo_link is None else echo_link
         if echo_link:
             self.show_app_running(server_conf)
         for app_context in self.get_app_context_managers(server_conf):
@@ -169,7 +170,7 @@ class App:
                 # Exception is ExceptionGroup[ExceptionGroup]
                 # Check if all expected
                 await self._run_end()
-                if CloseSessionException._only_this(exc):
+                if UserLeftException._only_this(exc):
                     # Is expected
                     return
                 raise
@@ -201,21 +202,13 @@ class App:
                                 args.append(session)
                             session.tasks.append(tg.create_task(stream(*args)))
                         logger.info(f"Session opened for client: {start_args.request_id}")
-                except ExceptionGroup as exc:
-                    is_close_stream = all(isinstance(e, CloseStreamException) for e in exc.exceptions)
-                    if is_close_stream:
-                        logger.info("Stream closed expectedly")
-                        # We raise so that stream can close itself
-                        raise
-                    is_expected = all(isinstance(e, CloseSessionException) for e in exc.exceptions)
-                    if not is_expected:
-                        logger.exception("Session closed with error")
-                        raise
-                    # Stream closed expectedly
-                    logger.info("Session closed expectedly")
+                except* UserLeftException as exc:
+                    logger.info("User session closed by the user")
+                    await session.close(send_stop=False)
+                else:
+                    await session.close()
                 finally:
                     await self._run_close()
-                    await session.close()
 
     async def _run_start(self, tg: asyncio.TaskGroup):
         for cb in self.callbacks_start:

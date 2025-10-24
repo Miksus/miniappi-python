@@ -4,7 +4,7 @@ from typing import List, Dict, Awaitable, Any, Callable
 from collections.abc import Callable
 from contextlib import asynccontextmanager, AsyncExitStack
 from pydantic import BaseModel
-from .exceptions import CloseSessionException
+from .exceptions import UserLeftException
 from .connection import AbstractUserConnection, Message
 from .connection import UserSessionArgs
 from .models.message_types import InputMessage, PutRoot, BaseMessage
@@ -72,9 +72,6 @@ class Session:
                 if message is not None:
                     await self._handle_request_message(message)
                 await asyncio.sleep(0)
-        except CloseSessionException:
-            # Normal closure (should not crash)
-            pass
         finally:
             self.is_running = False
 
@@ -82,7 +79,6 @@ class Session:
         "Close listening and remove session"
         logger = self.get_logger()
         logger.debug("Closing channel")
-        #await self._pubsub.unsubscribe()
         self._sessions.pop(self.start_args.request_id)
         for task in self.tasks:
             task.cancel()
@@ -91,7 +87,7 @@ class Session:
 
     async def _handle_request_message(self, msg: Message):
         if self._is_stop_message(msg):
-            raise CloseSessionException("Client requested to close")
+            raise UserLeftException("Client requested to close")
         for func in self.callbacks_message:
             await func(msg)
 
