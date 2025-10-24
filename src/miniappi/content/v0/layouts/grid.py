@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional, Union
 
-from miniappi.core.app.models import BaseContent
+from miniappi.core.models.content import BaseContent
 from pydantic import ConfigDict, Field, RootModel
 
 
