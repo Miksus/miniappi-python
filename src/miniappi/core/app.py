@@ -1,20 +1,22 @@
 import asyncio
-import json
-import random
-import datetime
-import os, sys
-import random
+import sys
 import logging
-from contextlib import ExitStack, contextmanager, asynccontextmanager
+from dataclasses import asdict
+from contextlib import ExitStack, contextmanager
 from types import TracebackType
 from typing import List, Dict, Any, Awaitable, Type, Generic, TypeVar, ContextManager
+from functools import partial
 from collections.abc import Callable
 
-from .models import OnMessageConfig, OnOpenConfig
-from .session import StreamSession
-from .exceptions import CloseSessionException, CloseStreamException
-from .connection import AbstractConnection, AbstractClient, AbstractChannel, Message, BaseStartArgs, WebsocketClient
+from miniappi.core.models.callbacks import OnMessageConfig, OnOpenConfig
+from miniappi.core.exceptions import UserLeftException, CloseStreamException
+from . import connection as conn
+from .connection import Message, ServerConf, ClientConf, UserSessionArgs
 from miniappi.config import settings
+from miniappi.core.models.context import Context
+from miniappi.core.context import app_context as default_app_context, user_context as default_user_context
+from .session import Session
+
 from rich import print
 from rich.panel import Panel
 
@@ -24,38 +26,109 @@ type CloseCallbackWithError = Callable[[type[BaseException], BaseException, Trac
 type CloseCallbackNoError = Callable[[None, None, None], Awaitable[Any]]
 type CloseCallback = CloseCallbackWithError | CloseCallbackNoError
 
-StreamSessionT = TypeVar("StreamSessionT", bound=StreamSession, default=StreamSession)
-#ConnectionClientT = TypeVar("ConnectionClientT", bound=AbstractConnectionClient)
 
-class Streamer(Generic[StreamSessionT]):
+class App:
+    """Miniappi application
 
-    cls_session: Type[StreamSessionT] = StreamSession
+    This class is the entrypoint
+    to create apps and it handles
+    the communication with Miniappi
+    server.
 
-    conn_client: AbstractClient = WebsocketClient()
+    Args:
+        app_name (str, optional):
+            Name of the application. None for
+            anonymous applications. Does nothing
+            currently but exists for forward
+            compatibility.
+        user_context (Context, optional): 
+            Optional extra user scoped context
+            to keep track on user level
+            data. This is automatically
+            scoped and can be set globally.
+        app_context (Context, optional):
+            Optional app scoped context
+            to keep track on app level data.
+            This is automatically
+            scoped and can be set globally.
 
-    def __init__(self, channel: str | None):
-        self.url = channel
+    Examples:
+        ```python
+        from miniappi import App
+
+        app = App()
+
+        @app.on_open()
+        async def new_user(session):
+            print("New user joined")
+            ...
+
+        app.run()
+        ```
+    """
+
+    cls_session: Type[Session] = Session
+
+    conn_client: conn.base.AbstractClient = conn.websocket.WebsocketClient()
+
+    def __init__(self, app_name: str | None = None,
+                 user_context: Context | None = None,
+                 app_context: Context | None = None):
+        self.app_name = app_name
 
         self.callbacks_start = []
         self.callbacks_message: List[Callable[[Message], Awaitable[Any]]] = []
-        self.callbacks_open: List[Callable[[StreamSessionT], Awaitable[Any]]] = []
+        self.callbacks_open: List[Callable[..., Awaitable[Any]]] = []
         self.callbacks_close: List[CloseCallback] = []
         self.callbacks_end: List[CloseCallback] = []
 
         self.app_context_managers: List[ContextManager] = []
         self.channel_context_managers: List[ContextManager] = []
 
-        self.sessions: Dict[str, StreamSessionT] = {}
+        self.sessions: Dict[str, Session] = {}
+        self.is_running = False
 
-        self.subscribed = False
+        self.channel_context = user_context
+        self.app_context = app_context
 
-    def get_app_context_managers(self, args: dict):
-        return self.app_context_managers
+    def _get_client_config(self):
+        return ClientConf(
+            app_name=self.app_name,
+            version=settings.version
+        )
 
-    def get_channel_context_managers(self, session: StreamSessionT):
-        return self.channel_context_managers
+    def get_channel_context_managers(self, session: Session):
+        init_args = dict(
+            session=session,
+            request_id=session.start_args.request_id,
+        )
+        ctx = [
+            *self.channel_context_managers,
+            default_user_context.enter(
+                init_args
+            ),
+        ]
+        if self.channel_context:
+            ctx.append(self.channel_context.enter())
+        return ctx
 
-    def show_app_url(self, url: str):
+    def get_app_context_managers(self, conf: ServerConf):
+        init_args = dict(
+            app=self,
+            sessions=self.sessions,
+            **asdict(conf)
+        )
+        ctx = [
+            *self.app_context_managers,
+            default_app_context.enter(init_args),
+        ]
+        if self.app_context:
+            ctx.append(self.app_context.enter())
+        return ctx
+
+
+    def show_app_running(self, server_conf: ServerConf):
+        url = server_conf.app_url
         print(
             Panel(
                 "Miniappi is running.\n"
@@ -63,30 +136,22 @@ class Streamer(Generic[StreamSessionT]):
             )
         )
 
-    @asynccontextmanager
-    async def _subscribe(self, echo_link: bool | None, stack: ExitStack):
-        client: AbstractChannel = self.conn_client.from_init_channel(self.url)
-        async with client.connect() as connection:
-            url = client.app_url
-            if url is not None:
-                show_url = (
-                    echo_link
-                    if echo_link is not None
-                    else settings.echo_url
-                )
-                if show_url:
-                    self.show_app_url(url)
-            args = {
-                "app_url": client.app_url,
-                "name": client.app_name
-            }
-            for app_context in self.get_app_context_managers(args):
-                stack.enter_context(app_context)
-            yield connection
+    async def setup_start(self, server_conf: ServerConf, echo_link: bool | None, task_group: asyncio.TaskGroup, stack: ExitStack):
+        echo_link = settings.echo_url if echo_link is None else echo_link
+        if echo_link:
+            self.show_app_running(server_conf)
+        for app_context in self.get_app_context_managers(server_conf):
+            stack.enter_context(app_context)
+        self.is_running = True
+        self.app_name = server_conf.app_name
+        await self._run_start(task_group)
 
-    async def _listen_start(self, connection: AbstractConnection):
-        async for start_args in connection.listen_start():
-            yield start_args
+    async def _listen_start(self, echo_link: bool | None, app_stack: ExitStack, task_group: asyncio.TaskGroup):
+        app_config = self._get_client_config()
+
+        setup_start = partial(self.setup_start, echo_link=echo_link, stack=app_stack, task_group=task_group)
+        async for msg in self.conn_client.listen_app(app_config, setup_start=setup_start):
+            yield msg
 
     def run(self, echo_link: bool | None = None):
         "Run app (sync)"
@@ -94,48 +159,29 @@ class Streamer(Generic[StreamSessionT]):
 
     async def start(self, echo_link: bool | None = None):
         "Start app async"
-        if self.subscribed:
-            raise StreamRunningError("Stream is already subscribed")
-        logger = self.get_logger("stream")
+        logger = self.get_logger("init")
 
         with ExitStack() as app_stack:
             try:
-                logger.debug(f"Subscribing stream: {self.url}")
-                async with self._subscribe(echo_link, stack=app_stack) as start_conn:
-                    self.subscribed = True
-                    logger.info(f"Stream subscribed: {self.url}")
-                    async with asyncio.TaskGroup() as tg:
-                        await self._run_start(tg)
-                        async for start_args in self._listen_start(start_conn):
-                            tg.create_task(self.open_session(start_conn, start_args))
+                async with asyncio.TaskGroup() as tg:
+                    async for start_args in self._listen_start(echo_link=echo_link, app_stack=app_stack, task_group=tg):
+                        tg.create_task(self.open_session(start_args))
             except ExceptionGroup as exc:
                 # Exception is ExceptionGroup[ExceptionGroup]
                 # Check if all expected
                 await self._run_end()
-                is_expected = True
-                for channel_exc in exc.exceptions:
-                    if isinstance(channel_exc, ExceptionGroup):
-                        for session_exc in channel_exc.exceptions:
-                            if not isinstance(session_exc, CloseStreamException):
-                                is_expected = False
-                                break
-                    else:
-                        is_expected = False
-                        break
-                if not is_expected:
-                    logger.exception("Stream closed unexpectedly")
-                    raise
-                logger.info("Stream closed expectedly")
+                if UserLeftException._only_this(exc):
+                    # Is expected
+                    return
+                raise
             else:
                 await self._run_end()
             finally:
-                self.subscribed = False
+                self.is_running = False
 
-    async def open_session(self, start_conn: AbstractConnection, start_args: BaseStartArgs):
+    async def open_session(self, start_args: UserSessionArgs):
         logger = self.get_logger("session")
-
-        client = self.conn_client.from_start_args(start_args)
-        async with client.connect() as conn:
+        async with self.conn_client.connect_user(start_args) as conn:
             session = self.cls_session(
                 start_conn=conn,
                 start_args=start_args,
@@ -156,21 +202,13 @@ class Streamer(Generic[StreamSessionT]):
                                 args.append(session)
                             session.tasks.append(tg.create_task(stream(*args)))
                         logger.info(f"Session opened for client: {start_args.request_id}")
-                except ExceptionGroup as exc:
-                    is_close_stream = all(isinstance(e, CloseStreamException) for e in exc.exceptions)
-                    if is_close_stream:
-                        logger.info("Stream closed expectedly")
-                        # We raise so that stream can close itself
-                        raise
-                    is_expected = all(isinstance(e, CloseSessionException) for e in exc.exceptions)
-                    if not is_expected:
-                        logger.exception("Session closed with error")
-                        raise
-                    # Stream closed expectedly
-                    logger.info("Session closed expectedly")
+                except* UserLeftException as exc:
+                    logger.info("User session closed by the user")
+                    await session.close(send_stop=False)
+                else:
+                    await session.close()
                 finally:
                     await self._run_close()
-                    await session.close()
 
     async def _run_start(self, tg: asyncio.TaskGroup):
         for cb in self.callbacks_start:
@@ -247,7 +285,7 @@ class Streamer(Generic[StreamSessionT]):
             ...
         ```
         """
-        def wrapper(func: Callable[[StreamSessionT], Awaitable[Any]]):
+        def wrapper(func: Callable[..., Awaitable[Any]]):
             self.callbacks_start.append(func)
             return func
         return wrapper
@@ -264,7 +302,7 @@ class Streamer(Generic[StreamSessionT]):
             ...
         ```
         """
-        def wrapper(func: Callable[[StreamSessionT], Awaitable[Any]]):
+        def wrapper(func: Callable[..., Awaitable[Any]]):
             self.callbacks_open.append(
                 OnOpenConfig(
                     func=func,

@@ -4,32 +4,34 @@ from typing import List, Dict, Awaitable, Any, Callable
 from collections.abc import Callable
 from contextlib import asynccontextmanager, AsyncExitStack
 from pydantic import BaseModel
-from .exceptions import CloseSessionException
-from .connection import AbstractConnection, BaseStartArgs, Message
+from .exceptions import UserLeftException
+from .connection import AbstractUserConnection, Message
+from .connection import UserSessionArgs
+from .models.message_types import InputMessage, PutRoot, BaseMessage
+from .models.content import BaseContent
 
 type RequestStreams = List[Callable[[dict], Awaitable[Any]]]
 
-class StreamSession:
+class Session:
 
     callbacks_message: RequestStreams
     tasks: List[asyncio.Task]
 
-    def __init__(self, start_conn: AbstractConnection,
-                 start_args: BaseStartArgs,
+    def __init__(self, start_conn: AbstractUserConnection,
+                 start_args: UserSessionArgs,
                  callbacks_message: RequestStreams,
-                 sessions: Dict[str, "StreamSession"]):
+                 sessions: Dict[str, "Session"]):
         self.start_conn = start_conn
         self.start_args = start_args
 
         self.callbacks_message = callbacks_message
+
         self._sessions = sessions
-
-        self._pubsub = None
-
         self._sessions[start_args.request_id] = self
+
         self.tasks = []
 
-        self.subscribed = False
+        self.is_running = False
 
     @property
     def request_id(self):
@@ -40,46 +42,43 @@ class StreamSession:
 
         logger = self.get_logger()
         logger.info("Sending data")
-        await self._publish(data)
+        body = self._format_send_message(data)
 
-    @asynccontextmanager
-    async def _subscribe(self):
-        client = self.start_conn.from_start_args(self.start_args)
-        async with client.connect() as connection:
-            yield connection
+        await self.start_conn.send(body)
 
-    async def _listen(self):
-        async for msg in self.start_conn.listen():
-            yield msg
+    def _format_send_message(self, data):
+        if isinstance(data, BaseContent):
+            # Considering as put message
+            data = PutRoot(
+                data=data
+            )
+        if isinstance(data, dict):
+            data = InputMessage(**data)
+        if not isinstance(data, BaseMessage):
+            raise TypeError(f"Expected: {BaseMessage!r}, given: {type(data)!r}")
+        
+        return data.model_dump(exclude_none=True)
 
     async def _publish(self, body):
-        await self.start_conn.publish(body)
-
-    @asynccontextmanager
-    async def _start(self):
-        async with self._subscribe() as ws:
-            self._pubsub = ws
-            yield
-            self._pubsub = None
+        await self.start_conn.send(body)
 
     async def listen(self):
         "Listen the request channel"
         logger = self.get_logger()
         try:
             logger.info("Listening channel")
-            self.subscribed = True
-            async for message in self._listen():
+            self.is_running = True
+            async for message in self.start_conn.listen():
                 if message is not None:
                     await self._handle_request_message(message)
                 await asyncio.sleep(0)
         finally:
-            self.subscribed = False
+            self.is_running = False
 
     async def close(self, send_stop=True):
         "Close listening and remove session"
         logger = self.get_logger()
         logger.debug("Closing channel")
-        #await self._pubsub.unsubscribe()
         self._sessions.pop(self.start_args.request_id)
         for task in self.tasks:
             task.cancel()
@@ -88,7 +87,7 @@ class StreamSession:
 
     async def _handle_request_message(self, msg: Message):
         if self._is_stop_message(msg):
-            raise CloseSessionException("Client requested to close")
+            raise UserLeftException("Client requested to close")
         for func in self.callbacks_message:
             await func(msg)
 

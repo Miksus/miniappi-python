@@ -1,6 +1,5 @@
-import asyncio
 from contextlib import contextmanager
-from miniappi.core.app import app_context, AppSession
+from miniappi.core import app_context
 
 class TempApp:
 

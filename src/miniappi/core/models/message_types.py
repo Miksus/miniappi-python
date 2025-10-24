@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Optional, Union
 
-from miniappi.core.app.models import BaseMessage
+from miniappi.core.models.content import BaseMessage
 from pydantic import ConfigDict, RootModel
 
 

@@ -1,8 +1,7 @@
-import json
-from typing import Any, Awaitable, Literal
+from typing import Any, Awaitable
 from collections.abc import Callable
 from pydantic import BaseModel
-from .connection import Message
+from miniappi.core.connection import Message
 
 class StartArgs(BaseModel):
     request_id: str

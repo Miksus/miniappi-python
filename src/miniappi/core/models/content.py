@@ -2,10 +2,10 @@ from typing import Union, TYPE_CHECKING, Generator
 from uuid import uuid4
 from contextlib import contextmanager
 from pydantic import BaseModel
-from .context import user_context, app_context
+from ..context import user_context, app_context
 
 if TYPE_CHECKING:
-    from .stream import AppSession
+    from ..app.stream import AppSession
 
 class BaseContent(BaseModel):
     id: str

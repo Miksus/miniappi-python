@@ -1,7 +1,7 @@
 from typing import Dict
-from miniappi.core.app.context import CurrentContent
-from miniappi.core.app.models import BaseContent
-from miniappi.core.app.message_types import InputMessage, PutRoot
+from miniappi.core.context import CurrentContent
+from miniappi.core.models.content import BaseContent
+from miniappi.core.models.message_types import InputMessage, PutRoot
 
 def handle_message(curr_content: CurrentContent, msg: InputMessage):
 
