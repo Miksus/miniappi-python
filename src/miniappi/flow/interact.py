@@ -1,7 +1,7 @@
 import asyncio
 from typing import Generic, TypeVar, Literal
 from collections import UserList
-from ..core.app import BaseContent, user_context, app_context, PushRight
+from miniappi.core import BaseContent, user_context, app_context
 from miniappi.core.connection import Message
 from miniappi.flow import temp_app, in_channel_scope, in_app_scope
 

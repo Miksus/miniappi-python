@@ -135,10 +135,10 @@ class WebApp:
             try:
                 yield client
                 # See: https://github.com/frankie567/httpx-ws/discussions/79#discussioncomment-12205278
-                transport.exit_stack = None
             finally:
+                transport.exit_stack = None
                 await asyncio.sleep(0)
-        ...
+
 
     async def close(self):
         self._close = True
@@ -146,70 +146,54 @@ class WebApp:
             await asyncio.sleep(0.0)
 
 
-@pytest.fixture
-async def fake_ws_client():
-    webapp = create_webapp()
-    try:
-        async with httpx.AsyncClient(transport=ASGIWebSocketTransport(webapp), headers={'host': 'example.org'}) as client:
-            yield client
-    except RuntimeError as exc:
-        if exc.args[0] == "Attempted to exit cancel scope in a different task than it was entered in":
-            # httpx_ws might try to close
-            # the client
-            return
-        raise
-
 @pytest.mark.asyncio
 async def test_anon():
     webapp = WebApp(
         requests=["1234"],
-        interactions=[]
+        interactions=[json.dumps({
+            "id": "1234",
+            "value": "pressed"
+        })]
     )
     async with webapp.enter_client() as client:
 
         app = App()
-        close_event = asyncio.Event()
+        received = []
+        has_joined = asyncio.Event()
+        has_interacted = asyncio.Event()
         app.conn_client = WebsocketClient(client=client)
 
         @app.on_open()
         async def join():
             await content.v0.Title(
+                id="a-title",
                 text="Some text"
             ).show()
-            close_event.set()
+            has_joined.set()
+
+        @app.on_message()
+        async def new_message(msg):
+            received.append(msg)
+            has_interacted.set()
 
         asyncio.create_task(app.start())
         async with asyncio.timeout(60 *5):
-            await close_event.wait()
+            await has_joined.wait()
+            await has_interacted.wait()
         await webapp.close()
         
         while app.is_running:
             await asyncio.sleep(0)
 
-        assert webapp.contents
-        assert webapp.contents
-        ...
-
-
-@pytest.mark.asyncio
-async def test_subscribe_anonymous():
-
-    socket: WebsocketClient = WebsocketClient(client=fake_ws_client).from_init_channel(None)
-
-    app = App()
-    app.conn_client = WebsocketClient(client=fake_ws_client)
-    with ExitStack() as app_stack:
-        async with asyncio.TaskGroup() as tg:
-            try:
-                async with socket.connect() as connection:
-                    async for msg in app._listen_start(echo_link=False, task_group=tg, app_stack=app_stack):
-                        assert msg.request_id == "1234"
-                        assert msg.channel == "http://localhost:5000/api/v1/streams/apps/session/unregistered/app-1234/1234"
-                        app._close_listen_start = True
-                        for _ in range(6):
-                            await asyncio.sleep(0)
-            except RuntimeError as exc:
-                if exc.args[0].startswith("Attempted to exit a cancel scope that isn't the current tasks's current cancel scope"):
-                    # We don't care if "aexit" wasn't called in the connection
-                    return
-                raise
+        assert [
+            "a-title"
+        ] ==  [
+            json.loads(cont)["data"]["id"]
+            for cont in webapp.contents
+        ]
+        assert [
+            {'id': '1234', 'value': 'pressed'}
+        ] == [
+            msg.data
+            for msg in received
+        ]
