@@ -7,6 +7,7 @@ from dataclasses import dataclass, asdict
 from pydantic import BaseModel
 from httpx_ws import aconnect_ws, AsyncWebSocketSession, WebSocketNetworkError, WebSocketDisconnect
 from httpx import AsyncClient
+from anyio import EndOfStream
 
 from miniappi.core.logging import Loggers
 
@@ -81,7 +82,7 @@ class WebsocketUserConnection(AbstractUserConnection):
 class WebsocketClient(AbstractClient):
 
     def __init__(self, client: AsyncClient | None = None):
-        self.client = client or AsyncClient(timeout=settings.timeout)
+        self.client = client or AsyncClient()
 
     @asynccontextmanager
     async def connect_user(self, start_args: WebsocketUserSessionArgs):
@@ -130,8 +131,15 @@ class WebsocketClient(AbstractClient):
                     async for msg in _listen_messages(ws):
                         LOGGER_APP.info("User joined")
                         yield WebsocketUserSessionArgs(**msg)
-            except WebSocketNetworkError as exc:
+
+            except (WebSocketNetworkError, EndOfStream) as exc:
                 # Reconnecting...
+
+                # Sometimes this may throw EndOfStream error
+                # due to WebSocketSession._background_receive
+                # trying to close already ended stream
+                # (possibly because ping already closed the stream)
+
                 if recovery_key:
                     is_reconnect = True
                     url = f"{settings.url_recover}/{recovery_key}"
