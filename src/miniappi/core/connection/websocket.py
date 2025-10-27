@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 import json
 import logging
 import asyncio
+from anyio import EndOfStream
 from typing import Callable, Any
 from dataclasses import dataclass, asdict
 from pydantic import BaseModel
@@ -130,8 +131,13 @@ class WebsocketClient(AbstractClient):
                     async for msg in _listen_messages(ws):
                         LOGGER_APP.info("User joined")
                         yield WebsocketUserSessionArgs(**msg)
-            except WebSocketNetworkError as exc:
+            except (WebSocketNetworkError, WebSocketDisconnect, EndOfStream) as exc:
                 # Reconnecting...
+
+                if isinstance(exc, WebSocketDisconnect) and exc.code == 1000:
+                    # Normal closure, don't reconnect
+                    raise
+
                 if recovery_key:
                     is_reconnect = True
                     url = f"{settings.url_recover}/{recovery_key}"
@@ -152,9 +158,16 @@ class WebsocketClient(AbstractClient):
                     )
                     raise
                 
+                # Log the error
+                msg = (
+                    f"Connection interupted with code {exc.code} ({exc.reason!r}). "
+                    if isinstance(exc, WebSocketDisconnect)
+                    else f"Network interupted. "
+                    if isinstance(exc, WebSocketNetworkError)
+                    else f"Stream crashed with error {exc!r}. "
+                )
                 LOGGER_APP.warning(
-                    f"Network interupted. Waiting {reconnect_delay} "
-                    "sec before reconnecting..."
+                    msg + f"Reconnecting in {reconnect_delay}..."
                 )
                 await asyncio.sleep(reconnect_delay)
             except WebSocketDisconnect as exc:
