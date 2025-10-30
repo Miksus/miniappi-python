@@ -5,9 +5,9 @@ import asyncio
 from anyio import EndOfStream
 from typing import Callable, Any
 from dataclasses import dataclass, asdict
-from pydantic import BaseModel
-from httpx_ws import aconnect_ws, AsyncWebSocketSession, WebSocketNetworkError, WebSocketDisconnect
+from httpx_ws import aconnect_ws, AsyncWebSocketSession, WebSocketNetworkError, WebSocketDisconnect, WebSocketUpgradeError
 from httpx import AsyncClient
+import httpcore
 
 from miniappi.core.logging import Loggers
 
@@ -131,8 +131,20 @@ class WebsocketClient(AbstractClient):
                     async for msg in _listen_messages(ws):
                         LOGGER_APP.info("User joined")
                         yield WebsocketUserSessionArgs(**msg)
-            except (WebSocketNetworkError, WebSocketDisconnect, EndOfStream) as exc:
+            except (WebSocketNetworkError, WebSocketDisconnect, ExceptionGroup, WebSocketUpgradeError) as exc:
                 # Reconnecting...
+
+                if isinstance(exc, ExceptionGroup):
+                    # anyio may leak EndOfStream to httpcore and to http-ws
+                    # in http-ws background task. This possibly is caused
+                    # by keepalive pinging
+                    # See: https://github.com/encode/httpcore/discussions/1045
+                    all_stream_related = all(
+                        isinstance(e, (EndOfStream, httpcore.NetworkError, httpcore.TimeoutException))
+                        for e in exc.exceptions
+                    )
+                    if not all_stream_related:
+                        raise
 
                 if isinstance(exc, WebSocketDisconnect) and exc.code == 1000:
                     # Normal closure, don't reconnect
