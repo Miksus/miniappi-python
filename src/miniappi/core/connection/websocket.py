@@ -117,7 +117,6 @@ class WebsocketClient(AbstractClient):
                     keepalive_ping_interval_seconds=settings.keepalive_ping_interval,
                     keepalive_ping_timeout_seconds=settings.keepalive_ping_timeout
                 ) as ws:
-                    n_fails = 0
                     if not is_reconnect:
                         # Initialize the app
                         await ws.send_json(asdict(conf))
@@ -128,6 +127,7 @@ class WebsocketClient(AbstractClient):
                     recovery_conf = RecoveryConf(**await ws.receive_json())
                     recovery_key = recovery_conf.recovery_key
                     LOGGER_APP.info("App connected")
+                    n_fails = 0
                     async for msg in _listen_messages(ws):
                         LOGGER_APP.info("User joined")
                         yield WebsocketUserSessionArgs(**msg)
