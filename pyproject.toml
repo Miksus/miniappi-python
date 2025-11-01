@@ -1,6 +1,6 @@
 [project]
 name = "miniappi"
-version = "0.1.6"
+version = "0.1.7"
 description = "Miniappi app launcher library"
 authors = [
   {name = "Mikael Koli", email = "mikael.koli@miniappi.com"},
