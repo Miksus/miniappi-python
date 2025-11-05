@@ -118,21 +118,3 @@ class PutRoot(BaseMessage):
     data: Any
     method: Literal['put'] = 'put'
     type: Literal['root'] = 'root'
-
-
-class ShowRef(BaseMessage):
-    model_config = ConfigDict(
-        extra='allow',
-    )
-    id: str
-    method: Literal['show'] = 'show'
-    type: Literal['ref'] = 'ref'
-
-
-class ShowRoot(BaseMessage):
-    model_config = ConfigDict(
-        extra='allow',
-    )
-    id: str
-    method: Literal['show'] = 'show'
-    type: Literal['root'] = 'root'

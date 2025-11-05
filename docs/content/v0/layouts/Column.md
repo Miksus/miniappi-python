@@ -12,17 +12,30 @@ Column(...)
 
 | attribute  | type      | description | required |
 |------------|-----------|-------------|----------|
-| contents | array or Reference[any[]] | None | True |
+| contents | array or ArrayReference | None | True |
 
 ## Suplementary
 
-### Reference<any[]>
+### ArrayReference
 ```python
-from miniappi.content.v0.layouts.column import Reference%3Cany%5B%5D%3E
+from miniappi.content.v0.layouts.column import ArrayReference
 ```
 
 | attribute  | type      | description | required |
 |------------|-----------|-------------|----------|
-| data | array | If given, the reference is initialized with given type | False |
-| reference | string | ID of the reference | True |
+| data | array | None | True |
+| limit | number | None | True |
+| method | string: <ul><li>'lifo'</li><li>'fifo'</li><li>'ignore'</li></ul> | None | True |
+| reference | string | None | True |
+| type | string | None | True |
+
+
+### BaseContent
+```python
+from miniappi.content.v0.layouts.column import BaseContent
+```
+
+| attribute  | type      | description | required |
+|------------|-----------|-------------|----------|
+
 

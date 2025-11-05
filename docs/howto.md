@@ -353,3 +353,89 @@ async def new_user(session):
             ...
         ... # Play game
 ```
+
+### Sending stream of data
+
+For messaging apps, plotting apps or
+other apps that rely on stream of data,
+refreshing the whole UI for every new
+message or record causes unnecessary
+network burden and slows the app.
+
+Instead of doing this:
+
+```python
+
+@app.on_open()
+async def new_user(session):
+    # Show data
+    await content.v0.layouts.Row(
+        contents=["first"]
+    ).show()
+
+    ... # Wait for data
+
+    # Show updated data
+    await content.v0.layouts.Row(
+        contents=["first", "second"]
+    ).show()
+
+    # And some more data
+    await content.v0.layouts.Row(
+        contents=["first", "second", "third"]
+    ).show()
+```
+
+you can use ``Feed``:
+
+```python
+from miniappi.ref import Feed
+
+@app.on_open()
+async def new_user(session):
+    # Show data
+    feed = Feed[str](["first"])
+    await content.v0.layouts.Row(
+        contents=feed
+    ).show()
+
+    ... # Wait for data
+
+    # Show updated data
+    await feed.append("second")
+
+    # And some more data
+    await feed.append("third")
+```
+
+When a feed is appended with new data,
+it triggers push event to the UI.
+It only sends the appended item but
+the UI keeps the previous values in
+memory.
+
+If called in user context (ie. inside ``on_open``),
+the event is sent only for the current user.
+If called in app context (ie. inside ``on_start``),
+the event is sent to all open user sessions.
+
+If the list gets too big, the feed automatically
+removes items. Having too big feed may slow down
+the UI or make it unusable thus it is important
+not to accumulate too much data in the UI. This
+is limiting partly done in the app and partly in
+the UI so that there is no need to send explicit
+deletion events.
+
+You can control the limiting with ``limit``
+and ``method`` parameters:
+
+```python
+feed = Feed([], limit=20, method="fifo")
+```
+
+This feed can contain only 20 items and if more
+are put, the items in the beginning of the
+list (first appended) will be removed first.
+You can also use ``lifo`` to remove those first
+which were added last.
