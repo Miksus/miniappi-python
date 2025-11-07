@@ -8,22 +8,18 @@ from typing import List, Literal, Optional, Union
 from miniappi.core.models.content import BaseContent
 from pydantic import ConfigDict, Field, RootModel
 
+from miniappi.core.models.references import ArrayReference
 
-class ReferenceAny(BaseContent):
+class BaseContentModel(BaseContent):
     """
-    Reference content/attribute References are useful for fast changing data to avoid sending the whole UI structure every time.
+    Base model for content
     """
 
     model_config = ConfigDict(
         extra='allow',
     )
-    data: Optional[List] = Field(
-        None, description='If given, the reference is initialized with given type'
-    )
-    reference: str = Field(..., description='ID of the reference')
-
-
-Reference3Cany5B5D3E = ReferenceAny
+    contentType: Optional[str] = None
+    id: Optional[str] = None
 
 
 class Props(BaseContent):
@@ -31,7 +27,7 @@ class Props(BaseContent):
         extra='allow',
     )
     cols: Optional[float] = None
-    contents: Union[List, Reference3Cany5B5D3E]
+    contents: Union[List, ArrayReference]
     id: str = Field(..., description='ID of the component')
     rows: Optional[float] = None
     contentType: Literal['v0/layouts/Grid.vue'] = 'v0/layouts/Grid.vue'
