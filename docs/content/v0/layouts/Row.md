@@ -29,13 +29,3 @@ from miniappi.content.v0.layouts.row import ArrayReference
 | reference | string | None | True |
 | type | string | None | True |
 
-
-### BaseContent
-```python
-from miniappi.content.v0.layouts.row import BaseContent
-```
-
-| attribute  | type      | description | required |
-|------------|-----------|-------------|----------|
-
-
